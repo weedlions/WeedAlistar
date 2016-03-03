@@ -1,5 +1,7 @@
 require "UOL"
+require "VPrediction"
 
+local VP = nil
 local predTable = {"None"}
 local currentPred = nil
 local myHero = GetMyHero()
@@ -12,6 +14,8 @@ if myHero.charName ~= "Alistar" then return end
 function OnLoad()
 
   minionmanager = minionManager(MINION_ALL, 1500)
+
+  VP = VPrediction()
 
   if(myHero.charName == "Alistar") then
     PrintChat("Welcome to Weed Alistar. Good Luck, Have Fun!")
@@ -42,6 +46,10 @@ function initMenu()
   Config.settHeal:addParam("health", "Default value = 75", SCRIPT_PARAM_SLICE, 75, 0, 100, 0)
   Config.settHeal:addParam("Blank", "Min Mana for Autoheal", SCRIPT_PARAM_INFO, "")
   Config.settHeal:addParam("mana", "Default value = 25", SCRIPT_PARAM_SLICE, 25, 0, 100, 0)
+  
+  Config:addSubMenu("Anti-Dash Settings", "settDash")
+  Config.settDash:addParam("useq", "Use Q", SCRIPT_PARAM_ONOFF, true)
+  Config.settDash:addParam("usew", "Use W", SCRIPT_PARAM_ONOFF, true)
 
   Config:addSubMenu("Draw Settings", "settDraw")
   Config.settDraw:addParam("qrange", "Draw Q Range", SCRIPT_PARAM_ONOFF, true)
@@ -62,6 +70,24 @@ function OnTick()
   if(UOL:GetOrbWalkMode() == "Combo") then onCombo() end
 
   autoHeal()
+  checkDash()
+
+end
+
+function checkDash()
+
+  for i=1, heroManager.iCount do
+    local enemy = heroManager:getHero(i)
+    
+    if enemy.team ~= myHero.team and enemy.visible == true and not enemy.dead then
+      local TargetDashing, CanHit, Position = VP:IsDashing(enemy, 0, 350, math.huge, myHero)
+      
+      if(TargetDashing and CanHit) then 
+      if(myHero:CanUseSpell(_Q) == READY and Config.settDash.useq) then CastSpell(_Q)
+      elseif(myHero:CanUseSpell(_W) == READY and Config.settDash.usew) then CastSpell(_W, enemy) end
+    end
+    end
+  end
 
 end
 
@@ -69,6 +95,7 @@ function autoHeal()
 
   local allycount = 0
   local heal = false
+  if not Config.settHeal.active then return end
 
   for i=1, heroManager.iCount do
     local ally = heroManager:getHero(i)
@@ -77,7 +104,7 @@ function autoHeal()
       allycount = allycount+1
       if(((ally.health/ally.maxHealth)*100) < Config.settHeal.health) then heal = true end
     end
-    
+
     if(((ally.health/ally.maxHealth)*100) < Config.settHeal.health and ally == myHero) then heal = true end
 
     if(allycount >= Config.settHeal.count and heal) then CastSpell(_E) end
